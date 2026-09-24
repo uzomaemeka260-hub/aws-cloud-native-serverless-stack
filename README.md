@@ -4,6 +4,19 @@ A containerized full-stack reference application that combines a React frontend,
 
 The project is designed to provide a repeatable local development and infrastructure workflow without requiring an AWS account. LocalStack emulates the AWS services, Terraform defines the infrastructure, Docker Compose runs the application, and GitHub Actions builds and publishes container artifacts to GitHub Container Registry.
 
+## Project Purpose
+
+This project simulates a production delivery workflow locally and at zero infrastructure cost. It provides a pre-production validation loop for building containers, provisioning AWS-compatible resources, deploying the application stack, and running smoke tests before promoting the same design to a real cloud environment.
+
+The local workflow is intentionally separated into clear responsibilities:
+
+- **Terraform:** Provision the infrastructure contract against LocalStack.
+- **Docker Compose:** Build and run the frontend, backend, and AWS service emulator.
+- **Smoke tests:** Verify the application can write and read user data through the API and DynamoDB-compatible service.
+- **GitHub Actions:** Build and publish application images as the CI artifact stage.
+
+This is a local pre-production simulation, not a claim of production deployment. A production promotion would add managed AWS services, remote encrypted Terraform state, secrets management, monitoring, alerting, deployment approvals, and a production runtime target.
+
 ## Architecture
 
 ```mermaid
