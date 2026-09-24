@@ -1,0 +1,42 @@
+version: '3.8'
+services:
+  localstack:
+    image: localstack/localstack:3.0.0
+    container_name: localstack_main
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3,lambda,sqs,dynamodb,iam
+      - AWS_DEFAULT_REGION=us-east-1
+    volumes:
+      - "./.localstack:/var/lib/localstack"
+    networks:
+      - serverless_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: local_backend_api
+    ports:
+      - "8080:8080"
+    depends_on:
+      - localstack
+    networks:
+      - serverless_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: local_frontend_ui
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - serverless_network
+
+networks:
+  serverless_network:
+    driver: bridge
