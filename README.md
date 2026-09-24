@@ -416,3 +416,20 @@ Remove LocalStack's persisted local data only when a clean environment is requir
 ```bash
 docker compose down -v
 ```
+## Evidence
+
+### Application
+
+![Running application](screenshots/frontend.png)
+
+### Persisted API data
+
+![Saved user data](screenshots/saved-user.png)
+
+### Docker Compose services
+
+![Running containers](screenshots/docker-compose.png)
+
+### GitHub Actions
+
+![Successful CI pipeline](screenshots/github-actions.png)
