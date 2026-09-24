@@ -61,6 +61,19 @@ flowchart TD
 
 The current GitHub Actions workflow publishes images; it does not deploy them to a runtime environment. A production extension would add a deployment target, image promotion, environment approvals, and secret-backed cloud credentials.
 
+## Cost-Optimization Strategy
+
+The design separates validation cost from production cost:
+
+| Stage | Platform | Cost strategy |
+| --- | --- | --- |
+| Local development | Docker Compose + LocalStack | No AWS spend; run services only when needed |
+| Pull request validation | GitHub Actions | Validate Terraform, Compose, and container builds before merge |
+| Main branch artifacts | GHCR | Publish versioned images using the commit SHA and a convenience `latest` tag |
+| Production promotion | AWS or another cloud runtime | Select a right-sized managed or serverless target and apply budgets/alerts |
+
+This makes the local loop inexpensive while preserving the controls that matter before production: repeatable infrastructure, build validation, traceable artifacts, and smoke tests. “Zero cost” applies to the local simulation; production cost depends on the selected runtime, traffic, retention, and managed services.
+
 ## Technology Stack
 
 - **Frontend:** React 18, served from Nginx in a multi-stage Docker image
@@ -312,14 +325,16 @@ It currently:
 3. Builds and publishes the frontend image.
 4. Builds and publishes the backend image.
 
-The images are published as:
+On pushes to `main`, the images are published as:
 
 ```text
 ghcr.io/<owner>/<repository>/app-frontend:latest
 ghcr.io/<owner>/<repository>/app-backend:latest
+ghcr.io/<owner>/<repository>/app-frontend:<commit-sha>
+ghcr.io/<owner>/<repository>/app-backend:<commit-sha>
 ```
 
-The current workflow does not run Terraform, deploy LocalStack, start Docker Compose, or deploy to a production host. Docker Compose builds from local source directories, so it does not automatically pull the GHCR images.
+Pull requests run Terraform formatting/validation, Compose configuration validation, and container builds without publishing images. The current workflow does not deploy LocalStack or a production host. Docker Compose builds from local source directories, so it does not automatically pull the GHCR images.
 
 ## Development-to-CI Workflow
 
