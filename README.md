@@ -2,32 +2,51 @@
 
 A containerized full-stack reference application that combines a React frontend, an Express API, Terraform-managed AWS-compatible infrastructure, LocalStack, and GitHub Actions container publishing.
 
-The project is designed to provide a repeatable local development and infrastructure workflow without requiring an AWS account. LocalStack emulates the AWS services, Terraform defines the infrastructure, Docker Compose runs the application, and GitHub Actions builds and publishes immutable application artifacts to GitHub Container Registry.
+The project is designed to provide a repeatable local development and infrastructure workflow without requiring an AWS account. LocalStack emulates the AWS services, Terraform defines the infrastructure, Docker Compose runs the application, and GitHub Actions builds and publishes container artifacts to GitHub Container Registry.
 
 ## Architecture
 
-```text
-                         GitHub push to main
-                                  |
-                                  v
-                       GitHub Actions CI pipeline
-                         |                    |
-                         v                    v
-                 Frontend image        Backend image
-                    published              published
-                    to GHCR                to GHCR
+```mermaid
+flowchart LR
+    browser[Browser] -->|HTTP :80| frontend[Frontend container\nReact build + Nginx]
+    frontend -->|/api/* proxy| backend[Backend container\nNode.js + Express :8080]
+    backend -->|AWS SDK| dynamodb[(DynamoDB\napp_production_users)]
 
-Local development
+    terraform[Terraform CLI\nhost process] -->|AWS provider\nlocalhost:4566| localstack[LocalStack container]
+    localstack --> dynamodb
+    localstack --> s3[(S3 bucket)]
+    localstack --> sqs[(SQS queue)]
 
-  Terraform CLI  --->  LocalStack (:4566)
-                         |      |      |
-                         S3  DynamoDB  SQS
-
-  Browser (:80) ---> Nginx/React frontend ---> Backend API (:8080)
-                                                   |
-                                                   v
-                                           DynamoDB users table
+    classDef app fill:#dbeafe,stroke:#2563eb,color:#172554
+    classDef infra fill:#dcfce7,stroke:#16a34a,color:#14532d
+    class frontend,backend app
+    class terraform,localstack,dynamodb,s3,sqs infra
 ```
+
+The host-side Terraform provider uses `localhost:4566`; containers use the Compose network hostname `localstack_main:4566`. Nginx proxies browser requests from `/api/*` to the backend service so the browser uses one origin.
+
+## Delivery Workflow
+
+```mermaid
+flowchart TD
+    change[Code change] --> validate[Local validation]
+    validate --> localstack[Start LocalStack]
+    localstack --> plan[terraform plan]
+    plan --> apply[terraform apply]
+    apply --> compose[Build and run Compose services]
+    compose --> smoke[API and browser smoke tests]
+    smoke --> commit[Commit and push to main]
+    commit --> actions[GitHub Actions]
+    actions --> build[Build frontend and backend images]
+    build --> registry[Publish images to GHCR]
+
+    classDef control fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef artifact fill:#e0e7ff,stroke:#4f46e5,color:#312e81
+    class plan,apply,actions control
+    class registry artifact
+```
+
+The current GitHub Actions workflow publishes images; it does not deploy them to a runtime environment. A production extension would add a deployment target, image promotion, environment approvals, and secret-backed cloud credentials.
 
 ## Technology Stack
 
@@ -41,24 +60,48 @@ Local development
 
 ## Repository Layout
 
-```text
-.
-├── backend/
-│   ├── Dockerfile
-│   ├── package.json
-│   └── server.js
-├── frontend/
-│   ├── Dockerfile
-│   ├── package.json
-│   ├── public/
-│   └── src/
-├── .github/workflows/deploy.yml
-├── docker-compose.yml
-├── main.tf
-├── providers.tf
-├── variables.tf
-└── terraform.tfstate
+```mermaid
+flowchart TB
+  root[aws-cloud-native-serverless-stack]
+  root --> backend[backend/]
+  backend --> backendDocker[Dockerfile]
+  backend --> backendPackage[package.json]
+  backend --> server[server.js\nExpress API + DynamoDB access]
+
+  root --> frontend[frontend/]
+  frontend --> frontendDocker[Dockerfile\nmulti-stage React/Nginx image]
+  frontend --> nginx[nginx.conf\nAPI reverse proxy]
+  frontend --> frontendPackage[package.json]
+  frontend --> public[public/]
+  frontend --> src[src/]
+
+  root --> workflow[.github/workflows/deploy.yml]
+  root --> compose[docker-compose.yml]
+  root --> terraform[Terraform configuration]
+  terraform --> main[main.tf\nAWS resources]
+  terraform --> provider[providers.tf\nLocalStack endpoints]
+  terraform --> variables[variables.tf]
+  root --> readme[README.md]
+
+  classDef folder fill:#f1f5f9,stroke:#475569,color:#0f172a
+  classDef config fill:#fef3c7,stroke:#d97706,color:#78350f
+  class backend,frontend,public,src,terraform folder
+  class workflow,compose,main,provider,variables,readme config
 ```
+
+Generated and machine-local files such as `.terraform/`, `tfplan`, `terraform.tfstate`, and `.localstack/` are intentionally excluded from source control.
+
+## Portfolio Evidence
+
+The repository demonstrates the following independently reviewable practices:
+
+- **Infrastructure as Code:** Terraform defines DynamoDB, SQS, and S3 resources instead of requiring manual console setup.
+- **Environment parity:** LocalStack provides an AWS-compatible local target while preserving the provider and SDK integration model.
+- **Container boundaries:** Frontend, backend, and infrastructure emulation have separate containers with explicit network and dependency relationships.
+- **Application routing:** Nginx serves the frontend and reverse-proxies API traffic to avoid browser cross-origin configuration in the local stack.
+- **Repeatable delivery:** GitHub Actions builds both application images and publishes them to GHCR on changes to `main`.
+- **Operational hygiene:** Generated Terraform providers, plans, state, and LocalStack data are excluded from Git to prevent secrets, machine state, and oversized binaries entering repository history.
+- **Verification path:** The README documents a plan-before-apply workflow, API smoke tests, service logs, state-lock handling, and cleanup.
 
 ## Infrastructure Managed by Terraform
 
