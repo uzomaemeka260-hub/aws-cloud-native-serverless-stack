@@ -3,3 +3,8 @@ terraform.tfstate.*
 .terraform/
 .localstack/
 tfplan
+.terraform/
+tfplan
+terraform.tfstate
+terraform.tfstate.*
+.localstack/
